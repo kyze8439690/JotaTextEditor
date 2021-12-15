@@ -20,10 +20,7 @@ import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 
-import jp.sblo.pandora.jota.JotaTextEditor;
-import jp.sblo.pandora.jota.KeywordHighlght;
-import jp.sblo.pandora.jota.R;
-import jp.sblo.pandora.jota.SettingsActivity;
+import jp.sblo.pandora.jota.editor.R;
 import jp.sblo.pandora.jota.text.UndoBuffer.TextChange;
 import jp.sblo.pandora.jota.text.style.ForegroundColorSpan;
 import jp.sblo.pandora.jota.text.style.ParagraphStyle;
@@ -971,19 +968,6 @@ public class TextView extends View implements ViewTreeObserver.OnPreDrawListener
 		// Jota Text Editor
         enableUndo(true);
         mUnderLinePaint.setColor(0);
-        addTextChangedListener(new TextWatcher() {
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                KeywordHighlght.refresh();
-            }
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-            }
-            @Override
-            public void afterTextChanged(Editable s) {
-            }
-        });
-
     }
 
     // Jota Text Editor
@@ -1002,7 +986,7 @@ public class TextView extends View implements ViewTreeObserver.OnPreDrawListener
     }
 
     // Jota Text Editor
-    private TextWatcher mUndoWatcher = new TextWatcher() {
+    private final TextWatcher mUndoWatcher = new TextWatcher() {
         TextChange lastChange;
         public void onTextChanged(CharSequence s, int start, int before, int count) {
             if ( lastChange !=null ){
@@ -4845,18 +4829,6 @@ public class TextView extends View implements ViewTreeObserver.OnPreDrawListener
                 outAttrs.initialSelStart = getSelectionStart();
                 outAttrs.initialSelEnd = getSelectionEnd();
                 outAttrs.initialCapsMode = ic.getCursorCapsMode(mInputType);
-
-                // Jota Text Editor
-                if ( !JotaTextEditor.sHoneycomb ){
-                    // patch by matthias.gruenewald@googlemail.com
-                    if ( !mDontUseSoftkeyWithHardkey || getResources().getConfiguration().hardKeyboardHidden==Configuration.HARDKEYBOARDHIDDEN_YES ){
-                        InputMethodManager imm = InputMethodManager.peekInstance();
-                        if (imm != null){
-                            imm.showSoftInput(this, 0);
-                        }
-                    }
-                }
-
                 return ic;
             }
         }
@@ -8157,123 +8129,108 @@ public class TextView extends View implements ViewTreeObserver.OnPreDrawListener
         ClipboardManager clip = (ClipboardManager)getContext()
                 .getSystemService(Context.CLIPBOARD_SERVICE);
 
-        switch (id) {
-            case ID_SELECT_ALL:
-                Selection.setSelection((Spannable) mText, 0, mText.length());
+        if (id == ID_SELECT_ALL) {
+            Selection.setSelection((Spannable) mText, 0, mText.length());
+            startTextSelectionMode();
+            getSelectionController().show();
+            return true;
+        } else if (id == ID_START_SELECTING_TEXT) {
+            if (mHasNavigationDevice) {
+                MetaKeyKeyListener.startSelecting(this, (Spannable) mText);
+            } else {
+                int start = Selection.getSelectionStart((Spannable) mText);
+                ArrowKeyMovementMethod.selectWord((Spannable) mText, start);
                 startTextSelectionMode();
-                getSelectionController().show();
-                return true;
-
-            case ID_START_SELECTING_TEXT:
-                if ( mHasNavigationDevice ){
-                    MetaKeyKeyListener.startSelecting(this, (Spannable) mText);
-                }else{
-                    int start = Selection.getSelectionStart((Spannable)mText);
-                    ArrowKeyMovementMethod.selectWord((Spannable)mText, start);
-                    startTextSelectionMode();
-                }
+            }
 //                startTextSelectionMode();
 //                getSelectionController().show();
-                return true;
-
-            case ID_STOP_SELECTING_TEXT:
-                MetaKeyKeyListener.stopSelecting(this, (Spannable) mText);
+            return true;
+        } else if (id == ID_STOP_SELECTING_TEXT) {
+            MetaKeyKeyListener.stopSelecting(this, (Spannable) mText);
 //                Selection.setSelection((Spannable) mText, getSelectionEnd()); // Jota Text Editor
-                return true;
+            return true;
 
             // Jota Text Editor
-            case ID_CANCEL_SELECTION:
-                Selection.setSelection((Spannable) mText, getSelectionEnd());
-                return true;
+        } else if (id == ID_CANCEL_SELECTION) {
+            Selection.setSelection((Spannable) mText, getSelectionEnd());
+            return true;
 
-			// Jota Text Editor
-            case ID_SHOW_IME:
-            {
-                showIme( true );
-                return true;
+            // Jota Text Editor
+        } else if (id == ID_SHOW_IME) {
+            showIme(true);
+            return true;
+        } else if (id == ID_UNDO) {
+            MetaKeyKeyListener.stopSelecting(this, (Spannable) mText);
+
+            // UNDO
+            TextChange textchange = mUndoBuffer.pop();
+            if (textchange != null) {
+                Editable text = (Editable) getText();
+                mUndoRedo = true;
+                text.replace(textchange.start, textchange.start + textchange.newtext.length(), textchange.oldtext);
+                Selection.setSelection(text, textchange.start + textchange.oldtext.length());
+                mRedoBuffer.push(textchange);
             }
-            case ID_UNDO:
+
+            return true;
+        } else if (id == ID_REDO) {
+            MetaKeyKeyListener.stopSelecting(this, (Spannable) mText);
+
+            // REDO
+            TextChange textchange = mRedoBuffer.pop();
+            if (textchange != null) {
+                Editable text = (Editable) getText();
+                mUndoRedo = true;
+                text.replace(textchange.start, textchange.start + textchange.oldtext.length(), textchange.newtext);
+                Selection.setSelection(text, textchange.start + textchange.newtext.length());
+                mUndoBuffer.push(textchange);
+            }
+
+            return true;
+        } else if (id == ID_CUT) {// Jota Text Editor
+            if (max - min > MAX_PARCELABLE) {
+                Toast.makeText(getContext(), R.string.toast_overflow_of_limit, Toast.LENGTH_LONG).show();
+            } else {
+                clip.setText(clearSpan(mTransformed.subSequence(min, max)));
+                ((Editable) mText).delete(min, max);
+                stopTextSelectionMode();
                 MetaKeyKeyListener.stopSelecting(this, (Spannable) mText);
-
-                // UNDO
-                {
-                    TextChange textchange = mUndoBuffer.pop();
-                    if ( textchange != null ){
-                        Editable text = (Editable)getText();
-                        mUndoRedo = true;
-                        text.replace( textchange.start , textchange.start + textchange.newtext.length() , textchange.oldtext );
-                        Selection.setSelection( text, textchange.start + textchange.oldtext.length());
-                        mRedoBuffer.push(textchange);
-                    }
-                }
-
-                return true;
-            case ID_REDO:
+            }
+            return true;
+        } else if (id == ID_COPY) {// Jota Text Editor
+            if (max - min > MAX_PARCELABLE) {
+                Toast.makeText(getContext(), R.string.toast_overflow_of_limit, Toast.LENGTH_LONG).show();
+            } else {
+                clip.setText(clearSpan(mTransformed.subSequence(min, max)));
+                stopTextSelectionMode();
                 MetaKeyKeyListener.stopSelecting(this, (Spannable) mText);
+            }
+            return true;
+        } else if (id == ID_PASTE) {
+            CharSequence paste = clip.getText();
 
-                // REDO
-                {
-                    TextChange textchange = mRedoBuffer.pop();
-                    if ( textchange != null ){
-                        Editable text = (Editable)getText();
-                        mUndoRedo = true;
-                        text.replace( textchange.start , textchange.start + textchange.oldtext.length() , textchange.newtext );
-                        Selection.setSelection( text, textchange.start + textchange.newtext.length());
-                        mUndoBuffer.push(textchange);
-                    }
-                }
-
-                return true;
-            case ID_CUT:
-                // Jota Text Editor
-                if ( max - min > MAX_PARCELABLE ){
-                    Toast.makeText(getContext(), R.string.toast_overflow_of_limit, Toast.LENGTH_LONG).show();
-                }else{
-                    clip.setText(clearSpan(mTransformed.subSequence(min, max)));
-                    ((Editable) mText).delete(min, max);
-                    stopTextSelectionMode();
-                    MetaKeyKeyListener.stopSelecting(this, (Spannable) mText);
-                }
-                return true;
-            case ID_COPY:
-                // Jota Text Editor
-                if ( max - min > MAX_PARCELABLE ){
-                    Toast.makeText(getContext(), R.string.toast_overflow_of_limit, Toast.LENGTH_LONG).show();
-                }else{
-                    clip.setText(clearSpan(mTransformed.subSequence(min, max)));
-                    stopTextSelectionMode();
-                    MetaKeyKeyListener.stopSelecting(this, (Spannable) mText);
-                }
-                return true;
-            case ID_PASTE:
-                CharSequence paste = clip.getText();
-
-                if (paste != null && paste.length() > 0) {
+            if (paste != null && paste.length() > 0) {
 //                    long minMax = prepareSpacesAroundPaste(min, max, paste);
 //                    min = extractRangeStartFromLong(minMax);
 //                    max = extractRangeEndFromLong(minMax);
 //                    Selection.setSelection((Spannable) mText, max);
-                    ((Editable) mText).replace(min, max, paste);
-                    stopTextSelectionMode();
-                    MetaKeyKeyListener.stopSelecting(this, (Spannable) mText);
-                }
-                return true;
-
-            case ID_COPY_URL:
-                URLSpan[] urls = ((Spanned) mText).getSpans(min, max, URLSpan.class);
-                if (urls.length == 1) {
-                    clip.setText(clearSpan(urls[0].getURL()));
-                }
-                return true;
-
-            case ID_SWITCH_INPUT_METHOD:
-            {
-                InputMethodManager imm = InputMethodManager.peekInstance();
-                if (imm != null) {
-                    imm.showInputMethodPicker();
-                }
-                return true;
+                ((Editable) mText).replace(min, max, paste);
+                stopTextSelectionMode();
+                MetaKeyKeyListener.stopSelecting(this, (Spannable) mText);
             }
+            return true;
+        } else if (id == ID_COPY_URL) {
+            URLSpan[] urls = ((Spanned) mText).getSpans(min, max, URLSpan.class);
+            if (urls.length == 1) {
+                clip.setText(clearSpan(urls[0].getURL()));
+            }
+            return true;
+        } else if (id == ID_SWITCH_INPUT_METHOD) {
+            InputMethodManager imm = InputMethodManager.peekInstance();
+            if (imm != null) {
+                imm.showInputMethodPicker();
+            }
+            return true;
 // Jota Text Editor
 //            case ID_ADD_TO_DICTIONARY:
 //                String word = getWordForDictionary();
@@ -8284,19 +8241,17 @@ public class TextView extends View implements ViewTreeObserver.OnPreDrawListener
 //                    getContext().startActivity(i);
 //                }
 //                return true;
+        } else if (id == ID_DIRECTINTENT) {
+            MetaKeyKeyListener.stopSelecting(this, (Spannable) mText);
 
-            case ID_DIRECTINTENT:
-                MetaKeyKeyListener.stopSelecting(this, (Spannable) mText);
+            if (min != max) {
+                ((EditText) this).doFunction(TextView.FUNCTION_DIRECTINTENT);
+            }
 
-                if (min != max) {
-                    ((EditText)this).doFunction(TextView.FUNCTION_DIRECTINTENT);
-                }
-
-                return true;
-
-            case ID_MENU:
-                ((EditText)this).doFunction(TextView.FUNCTION_MENU);
-                return true;
+            return true;
+        } else if (id == ID_MENU) {
+            ((EditText) this).doFunction(TextView.FUNCTION_MENU);
+            return true;
         }
 
         return false;
@@ -9630,9 +9585,9 @@ public class TextView extends View implements ViewTreeObserver.OnPreDrawListener
     private boolean mUnderline=false;
     public static final int MAX_PARCELABLE = 99 * 1024;
     private int mWrapWidthNumber=0;
-    private String mWrapWidthChar=SettingsActivity.DEFAULT_WRAP_WIDTH_CHAR;
+    private String mWrapWidthChar="m";
     private int mTabWidthNumber=0;
-    private String mTabWidthChar=SettingsActivity.DEFAULT_WRAP_WIDTH_CHAR;
+    private String mTabWidthChar="m";
     private boolean mUndoRedo = false;
     private boolean mShowLineNumber=false;
     private int mLineNumberWidth=0;

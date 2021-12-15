@@ -33,7 +33,6 @@ import com.android.internal.util.ArrayUtils;
 
 import junit.framework.Assert;
 
-import jp.sblo.pandora.jota.KeywordHighlght;
 import jp.sblo.pandora.jota.text.style.AlignmentSpan;
 import jp.sblo.pandora.jota.text.style.LeadingMarginSpan;
 import jp.sblo.pandora.jota.text.style.ParagraphStyle;
@@ -282,16 +281,6 @@ public abstract class Layout {
             }
         }
 
-        Alignment align = mAlignment;
-
-
-        if ( buf instanceof SpannableStringBuilder ){
-            int start = previousLineEnd;
-            int end = getLineVisibleEnd(last, start, getLineStart(last+1));
-            KeywordHighlght.setHighlight((SpannableStringBuilder)buf, start, end);
-        }
-
-
         // Next draw the lines, one at a time.
         // the baseline is the top of the following line minus the current
         // line's descent.
@@ -420,9 +409,6 @@ public abstract class Layout {
 
             Directions directions = getLineDirections(i);
             boolean hasTab = getLineContainsTab(i);
-            if ( KeywordHighlght.needHighlight() ){
-                hasTab = true;
-            }
             if (directions == DIRS_ALL_LEFT_TO_RIGHT &&
                     !spannedText && !hasTab) {
                 if (DEBUG) {

@@ -1,6 +1,5 @@
 package jp.sblo.pandora.jota.text;
 
-import jp.sblo.pandora.jota.JotaTextEditor;
 import android.os.Build;
 import android.text.Editable;
 import android.text.Selection;
@@ -126,7 +125,7 @@ public class JotaTextKeyListener extends TextKeyListener {
         return result;
     }
 
-    final private static int META_SELECTING = JotaTextEditor.sHoneycomb?MetaKeyKeyListener.META_SELECTING:(1 << 16);
+    final private static int META_SELECTING = MetaKeyKeyListener.META_SELECTING;
 
     public static final int getMetaStateSelecting(CharSequence text) {
         return MetaKeyKeyListener.getMetaState(text, META_SELECTING);

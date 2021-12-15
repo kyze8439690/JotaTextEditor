@@ -4,9 +4,6 @@ import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.util.HashMap;
 
-import jp.sblo.pandora.jota.IS01FullScreen;
-import jp.sblo.pandora.jota.JotaTextEditor;
-import jp.sblo.pandora.jota.R;
 import android.content.Context;
 import android.text.Editable;
 import android.text.Spannable;
@@ -16,6 +13,8 @@ import android.util.Log;
 import android.view.KeyEvent;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
+
+import jp.sblo.pandora.jota.editor.R;
 
 public class EditText extends TextView{
 
@@ -60,11 +59,7 @@ public class EditText extends TextView{
         setEditableFactory( JotaEditableFactory.getInstance() );
 
         // set IME options
-        if ( JotaTextEditor.sHoneycomb ){
-            setImeOptions(EditorInfo.IME_ACTION_DONE|EditorInfo.IME_FLAG_NO_FULLSCREEN|EditorInfo.IME_FLAG_NO_EXTRACT_UI);
-        }else{
-            setImeOptions(EditorInfo.IME_ACTION_DONE|0x80000000|EditorInfo.IME_FLAG_NO_EXTRACT_UI);
-        }
+        setImeOptions(EditorInfo.IME_ACTION_DONE|EditorInfo.IME_FLAG_NO_FULLSCREEN|EditorInfo.IME_FLAG_NO_EXTRACT_UI);
     }
 
 
@@ -214,12 +209,6 @@ public class EditText extends TextView{
                 }else if (event.getAction() == KeyEvent.ACTION_UP){
                     return true;
                 }
-            }
-        }
-        if ( IS01FullScreen.isIS01orLynx() ){
-            if ( keycode == KeyEvent.KEYCODE_PAGE_UP ||
-                 keycode == KeyEvent.KEYCODE_PAGE_DOWN ){
-                return true;
             }
         }
         return super.dispatchKeyEvent(event);

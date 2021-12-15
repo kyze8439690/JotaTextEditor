@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="caret_thick">2dp</dimen>
+    <dimen name="fastscroll_thumb_width">48dp</dimen>
+    <dimen name="fastscroll_thumb_height">52dp</dimen>
+</resources>
